@@ -1,0 +1,51 @@
+version: '3.4'
+
+services:
+  postgres:
+    image: postgres:13.4
+    env_file:
+      - .env
+    environment:
+      POSTGRES_PASSWORD: ${PROJECT_DB_PASS}
+      POSTGRES_USER: ${FOODY_DB_USER}
+      POSTGRES_DB: ${FOODY_DB_NAME}
+    networks:
+      - project-network
+    ports:
+      - ${PROJECT_DB_EXT_PORT}:${PROJECT_DB_PORT}
+    volumes:
+      - project-pg-data:/var/lib/postgresql/data
+      - ./snapshot.dump:/docker-entrypoint-initdb.d/snapshot.dump
+      - ./scripts/restore-snapshot.sh:/docker-entrypoint-initdb.d/restore-snapshot.sh
+    restart: always
+
+  project:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    user: '${UID:-1000}:${GID:-1000}'
+    environment:
+      NODE_ENV: production
+      FOODY_DB_HOST: postgres
+    networks:
+      - project-network
+    ports:
+      - ${PROJECT_APP_EXT_PORT}:3000
+      - ${PROJECT_APP_DEBUG_EXT_PORT}:9000
+    expose:
+      - 3000
+      - 9000
+    volumes:
+      - .:/opt/project
+    working_dir: /opt/project
+    command: ['/bin/sh', '-c', 'npm i && node index.js']
+
+volumes:
+  project-pg-data:
+
+networks:
+  project-network:
